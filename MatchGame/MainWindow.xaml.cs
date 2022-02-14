@@ -16,12 +16,16 @@ using System.Windows.Shapes;
 namespace MatchGame
 {
     using System.Windows.Threading;
+    using System.IO;
+    using Microsoft.VisualBasic;
+    using System.Diagnostics;
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
     public partial class MainWindow : Window
     {
-        DispatcherTimer timer = new DispatcherTimer();
+        Stopwatch sw = new Stopwatch();
+        DispatcherTimer timer = new();
         int tenthOfSecond;
         int matchesFound;
         public MainWindow()
@@ -35,26 +39,47 @@ namespace MatchGame
         private void Timer_Tick(object sender, EventArgs e)
         {
             tenthOfSecond++;
-            timeTextBlock.Text = (tenthOfSecond / 10F).ToString("0.0s");
+            timeTextBlock.Text = (tenthOfSecond / 10F).ToString("0.0");
             if (matchesFound == 8)
             {
                 timer.Stop();
-                string messageBoxText = "Do you want to play again?";
-                string caption = "Match game";
-                MessageBoxButton button = MessageBoxButton.YesNo;
-                MessageBoxImage icon = MessageBoxImage.Information;
-                MessageBoxResult result;
+                sw.Stop();
+                TimeSpan resolvedTime = sw.Elapsed;
+                CheckIfWinner(resolvedTime);
+                CheckIfPlayAgain();
+            }
+        }
 
-                result = MessageBox.Show(messageBoxText, caption, button, icon, MessageBoxResult.Yes);
+        private void CheckIfPlayAgain()
+        {
+            string messageBoxText = "Do you want to play again?";
+            string caption = "Match game";
+            MessageBoxResult result;
 
-                if (result == MessageBoxResult.Yes)
-                {
-                    SetUpGame();
-                }
-                else
-                {
-                    this.Close();
-                }
+            result = MessageBox.Show(messageBoxText, caption, MessageBoxButton.YesNo, MessageBoxImage.Information, MessageBoxResult.Yes);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                SetUpGame();
+            }
+            else
+            {
+                this.Close();
+            }
+        }
+
+        private void CheckIfWinner(TimeSpan Time)
+        {
+            if (Time > TimeSpan.Parse(bestScoreTime.Text))
+            {
+                BestPlayer player = new BestPlayer();
+                string stringTime = String.Format("{0}:{1}:{2}.{3}", Time.Hours, Time.Minutes, Time.Seconds, Time.Milliseconds);
+                bestScoreTime.Text = stringTime;
+                string winnerName = Interaction.InputBox("You got the best time! What's your name?", "Congratulations!", "Name");
+                bestScoreName.Text = winnerName;
+                player.Time = stringTime;
+                player.Name = winnerName;
+                File.WriteAllText("BestScore.json", Newtonsoft.Json.JsonConvert.SerializeObject(player));
             }
         }
 
@@ -78,14 +103,28 @@ namespace MatchGame
                 {
                     textBlock.Visibility = Visibility.Visible;
                 }
-                if (textBlock.Name != "timeTextBlock")
+                if (textBlock.Name != "timeTextBlock" && textBlock.Name != "bestScoreTitle" && textBlock.Name != "bestScoreName" && textBlock.Name != "bestScoreTime")
                 {
                     int index = random.Next(emojiList.Count);
                     textBlock.Text = emojiList[index];
                     emojiList.RemoveAt(index);
                 }
             }
+            if (File.Exists("BestScore.json"))
+            {
+                BestPlayer bestPlayerScore = Newtonsoft.Json.JsonConvert.DeserializeObject<BestPlayer>(File.ReadAllText("BestScore.json"));
+                bestScoreTime.Text = bestPlayerScore.Time;
+                bestScoreName.Text = bestPlayerScore.Name;
+            }
             timer.Start();
+            if (sw.IsRunning)
+            {
+                sw.Restart();
+            }
+            else
+            {
+                sw.Start();
+            }
             matchesFound = 0;
             tenthOfSecond = 0;
         }
@@ -108,15 +147,6 @@ namespace MatchGame
             {
                 lastClickResult.Visibility = Visibility.Visible;
                 lastClickResult = null;
-            }
-        }
-
-        private void TimeTextBlock_MouseDown(object sender, MouseButtonEventArgs e)
-        {
-            if (matchesFound == 8)
-            {
-
-                SetUpGame();
             }
         }
     }
